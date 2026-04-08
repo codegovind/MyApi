@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace MyApi.Migrations
+namespace TaxAccount.Migrations
 {
     /// <inheritdoc />
     public partial class InitialCreate : Migration

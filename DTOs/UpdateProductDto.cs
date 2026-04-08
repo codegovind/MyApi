@@ -1,4 +1,4 @@
-namespace MyApi.DTOs
+namespace TaxAccount.DTOs
 {
     public class UpdateProductDto
     {

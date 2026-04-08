@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using MyApi.Data;
-using MyApi.Models;
-using MyApi.Services;
-using MyApi.DTOs;
+using TaxAccount.Data;
+using TaxAccount.Models;
+using TaxAccount.Services;
+using TaxAccount.DTOs;
 
-namespace MyApi.Controllers;
+namespace TaxAccount.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]

@@ -4,11 +4,11 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using MyApi.Data;
+using TaxAccount.Data;
 
 #nullable disable
 
-namespace MyApi.Migrations
+namespace TaxAccount.Migrations
 {
     [DbContext(typeof(AppDbContext))]
     [Migration("20260224192911_InitialCreate")]

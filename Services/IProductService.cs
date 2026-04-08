@@ -1,7 +1,7 @@
-using MyApi.DTOs;
-using MyApi.Models;
+using TaxAccount.DTOs;
+using TaxAccount.Models;
 
-namespace MyApi.Services
+namespace TaxAccount.Services
 {
     public interface IProductService
     {

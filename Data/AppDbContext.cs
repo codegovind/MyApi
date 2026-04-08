@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using MyApi.Models;
+using TaxAccount.Models;
 
-namespace MyApi.Data;
+namespace TaxAccount.Data;
 
 public class AppDbContext : DbContext
 {

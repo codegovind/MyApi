@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using MyApi.Data;
-using MyApi.Models;
-using MyApi.DTOs;
+using TaxAccount.Data;
+using TaxAccount.Models;
+using TaxAccount.DTOs;
 
-namespace MyApi.Services
+namespace TaxAccount.Services
 {
     public class ProductService : IProductService
     {
@@ -43,7 +43,7 @@ namespace MyApi.Services
         {
             var product = new Product
             {
-                Name = dto.Name,
+                Name = dto.Name ?? string.Empty,
                 Price = dto.Price
             };
 
@@ -64,7 +64,7 @@ namespace MyApi.Services
             if (product == null)
                 return false;
 
-            product.Name = updatedProduct.Name;
+            product.Name = updatedProduct.Name ?? string.Empty;
             product.Price = updatedProduct.Price;
 
             await _context.SaveChangesAsync();

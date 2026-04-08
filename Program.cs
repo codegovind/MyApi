@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using MyApi.Data;
-using MyApi.Services;
+using TaxAccount.Data;
+using TaxAccount.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
