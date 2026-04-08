@@ -1,0 +1,17 @@
+# Build output
+bin/
+obj/
+
+# Sensitive config
+appsettings.json
+appsettings.Development.json
+
+# Docker ignore (these are build artifacts not source)
+.dockerignore
+
+# VS Code
+.vscode/
+
+# User specific
+*.user
+.vs/
