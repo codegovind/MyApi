@@ -32,6 +32,9 @@ try
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen();
 
+    // In-Memory Cache
+    builder.Services.AddMemoryCache();
+
     // FluentValidation
     builder.Services.AddFluentValidationAutoValidation();
     builder.Services.AddValidatorsFromAssemblyContaining<CreateProductValidator>();
