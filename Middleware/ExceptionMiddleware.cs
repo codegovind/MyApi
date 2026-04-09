@@ -24,7 +24,12 @@ namespace TaxAccount.Middleware
             }
             catch (AppException ex)
             {
-                _logger.LogWarning(ex, "Application exception occurred");
+                // Change ERR to WRN for known exceptions
+                if (ex.StatusCode >= 500)
+                  _logger.LogWarning(ex, "Application exception occurred");
+                else
+                  _logger.LogWarning("Application exception occurred: {Message}", ex.Message);
+
                 await HandleExceptionAsync(context, ex.Message, ex.StatusCode);
             }
             catch (Exception ex)

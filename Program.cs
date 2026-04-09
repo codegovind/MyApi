@@ -3,6 +3,11 @@ using Serilog;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using TaxAccount.Data;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Authorization;
+using TaxAccount.Authorization;
+using System.Text;
 using TaxAccount.Services;
 using TaxAccount.Middleware;
 using TaxAccount.Validators;
@@ -46,10 +51,61 @@ try
      builder.Services.AddDbContext<AppDbContext>(options =>
         options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+    // After other service registrations - authentication services
+    builder.Services.AddScoped<IAuthService, AuthService>();
+
+    // JWT Authentication
+    var jwtSettings = builder.Configuration.GetSection("JwtSettings");
+    var secretKey = jwtSettings["SecretKey"]!;
+
+    builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
+    .AddJwtBearer(options =>
+    {
+    options.TokenValidationParameters = new TokenValidationParameters
+        {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtSettings["Issuer"],
+        ValidAudience = jwtSettings["Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(secretKey))
+        };
+    });
+
+    // Register permission handler
+    builder.Services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
+
+    // Register each permission as a policy
+    builder.Services.AddAuthorization(options =>
+    {
+    var permissions = new[]
+    {
+        "products.view", "products.create", "products.edit", "products.delete",
+        "invoices.view", "invoices.create", "invoices.approve",
+        "reports.view", "users.manage", "accounts.manage"
+    };
+
+    foreach (var permission in permissions)
+    {
+        options.AddPolicy(permission, policy =>
+            policy.Requirements.Add(new PermissionRequirement(permission)));
+    }
+    });
+
     var app = builder.Build();
 
     // Global Exception Middleware
     app.UseMiddleware<ExceptionMiddleware>();
+
+    // authentication and authorization
+    app.UseAuthentication();
+    app.UseAuthorization();
 
     // Swagger
     // Configure the HTTP request pipeline.
