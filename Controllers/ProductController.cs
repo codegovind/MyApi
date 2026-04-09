@@ -42,30 +42,18 @@ public class ProductsController : ControllerBase
 public async Task<IActionResult> GetById(int id)
 {
     var product = await _productService.GetByIdAsync(id);
-
-    if (product == null)
-        return NotFound();
-
     return Ok(product);
 }
 [HttpPut("{id}")]
 public async Task<IActionResult> Update(int id, UpdateProductDto product)
 {
-    var updated = await _productService.UpdateAsync(id,product);
-
-    if(!updated)
-    return NotFound();
-
+    await _productService.UpdateAsync(id,product);
     return NoContent();
 }
 [HttpDelete("{id}")]
 public async Task<IActionResult> Delete(int id)
 {
-    var deleted = await _productService.DeleteAsync(id);
-
-    if (!deleted)
-        return NotFound();
-
+    await _productService.DeleteAsync(id);
     return NoContent();
 }
 }

@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using TaxAccount.Data;
 using TaxAccount.Models;
 using TaxAccount.DTOs;
+using TaxAccount.Exceptions;
+
 
 namespace TaxAccount.Services
 {
@@ -28,7 +30,7 @@ namespace TaxAccount.Services
 
         public async Task<ProductDto?> GetByIdAsync(int id)
         {
-            return await _context.Products
+            var product = await _context.Products
             .Where(p => p.Id == id)
             .Select(p => new ProductDto
             {
@@ -37,6 +39,11 @@ namespace TaxAccount.Services
                 Price = p.Price
             })
             .FirstOrDefaultAsync();
+
+            if (product == null)
+            throw new NotFoundException($"Product with id {id} not found");
+
+            return product;
         }
 
         public async Task<ProductDto> CreateAsync(CreateProductDto dto)
@@ -62,7 +69,7 @@ namespace TaxAccount.Services
         {
             var product = await _context.Products.FindAsync(id);
             if (product == null)
-                return false;
+                throw new NotFoundException($"Product with id {id} not found");
 
             product.Name = updatedProduct.Name ?? string.Empty;
             product.Price = updatedProduct.Price;
@@ -75,7 +82,7 @@ namespace TaxAccount.Services
         {
             var product = await _context.Products.FindAsync(id);
             if (product == null)
-                return false;
+                throw new NotFoundException($"Product with id {id} not found");
 
             _context.Products.Remove(product);
             await _context.SaveChangesAsync();
