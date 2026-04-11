@@ -56,7 +56,14 @@ try
 
     // JWT Authentication
     var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-    var secretKey = jwtSettings["SecretKey"]!;
+    //var secretKey = jwtSettings["SecretKey"]!;
+    //not null secrect key not forgiving
+        var secretKey = jwtSettings["SecretKey"];
+        if (string.IsNullOrEmpty(secretKey))
+        {
+            throw new Exception("JWT SecretKey is missing in configuration");
+        }
+
 
     builder.Services.AddAuthentication(options =>
     {
@@ -98,10 +105,29 @@ try
     }
     });
 
+    //Invoicing Service
+    builder.Services.AddScoped<IInvoiceService, InvoiceService>();
+
+    // Add Angular Cores 
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy("AllowAngular", policy =>
+        {
+                policy.WithOrigins(
+                "http://localhost:4200",
+                "http://localhost:8080")
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        });
+    });
+
     var app = builder.Build();
 
     // Global Exception Middleware
     app.UseMiddleware<ExceptionMiddleware>();
+
+    // Add Angular frontend
+    app.UseCors("AllowAngular");
 
     // authentication and authorization
     app.UseAuthentication();
@@ -118,7 +144,7 @@ try
     // Log every request
     app.UseSerilogRequestLogging();
 
-    app.UseAuthorization();
+    //app.UseAuthorization();
     app.MapControllers();
 
     // Test endpoints

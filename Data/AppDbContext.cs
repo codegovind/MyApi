@@ -14,9 +14,14 @@ public class AppDbContext : DbContext
     public DbSet<Role> Roles { get; set; }
     public DbSet<Permission> Permissions { get; set; }
     public DbSet<RolePermission> RolePermissions { get; set; }
+    public DbSet<Invoice> Invoices { get; set; }
+    public DbSet<InvoiceItem> InvoiceItems { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            //future proof for Identity inheritance or future ef features
+            base.OnModelCreating(modelBuilder);
+
             // Product price precision
             modelBuilder.Entity<Product>()
                 .Property(p => p.Price)
@@ -97,6 +102,40 @@ public class AppDbContext : DbContext
                 new RolePermission { RoleId = 4, PermissionId = 1 },
                 new RolePermission { RoleId = 4, PermissionId = 5 }
             );
+
+        // Invoice precision
+        modelBuilder.Entity<Invoice>()
+        .Property(i => i.SubTotal).HasPrecision(18, 2);
+        modelBuilder.Entity<Invoice>()
+        .Property(i => i.TaxAmount).HasPrecision(18, 2);
+        modelBuilder.Entity<Invoice>()
+        .Property(i => i.TotalAmount).HasPrecision(18, 2);
+
+        // InvoiceItem precision
+        modelBuilder.Entity<InvoiceItem>()
+        .Property(i => i.Quantity).HasPrecision(18, 2);
+        modelBuilder.Entity<InvoiceItem>()
+        .Property(i => i.UnitPrice).HasPrecision(18, 2);
+        modelBuilder.Entity<InvoiceItem>()
+        .Property(i => i.TaxPercent).HasPrecision(4, 2);
+        modelBuilder.Entity<InvoiceItem>()
+        .Property(i => i.TaxAmount).HasPrecision(18, 2);
+        modelBuilder.Entity<InvoiceItem>()
+        .Property(i => i.TotalAmount).HasPrecision(18, 2);
+
+        // Invoice → Customer relationship
+        modelBuilder.Entity<Invoice>()
+        .HasOne(i => i.Customer)
+        .WithMany()
+        .HasForeignKey(i => i.CustomerId)
+        .OnDelete(DeleteBehavior.Restrict);
+
+        // Invoice → CreatedBy relationship
+        modelBuilder.Entity<Invoice>()
+        .HasOne(i => i.CreatedBy)
+        .WithMany()
+        .HasForeignKey(i => i.CreatedByUserId)
+        .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }
