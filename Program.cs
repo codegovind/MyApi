@@ -121,7 +121,8 @@ try
                 "https://d3dpmdc1qjwvnh.cloudfront.net"
                 )
                 .AllowAnyHeader()
-                .AllowAnyMethod();
+                .AllowAnyMethod()
+                .AllowCredentials();
         });
     });
 
