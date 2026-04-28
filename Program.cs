@@ -115,7 +115,9 @@ try
         {
                 policy.WithOrigins(
                 "http://localhost:4200",
-                "http://localhost:8080")
+                "http://localhost:8080",
+                "http://taxaccount-frontend.s3-website.ap-south-1.amazonaws.com"
+                )
                 .AllowAnyHeader()
                 .AllowAnyMethod();
         });
