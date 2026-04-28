@@ -117,7 +117,8 @@ try
                 "http://localhost:4200",
                 "http://localhost:8080",
                 "http://taxaccount-frontend.s3-website.ap-south-1.amazonaws.com",
-                "https://d2lrr9q3q8iecd.cloudfront.net"
+                "https://d2lrr9q3q8iecd.cloudfront.net",
+                "https://d3dpmdc1qjwvnh.cloudfront.net"
                 )
                 .AllowAnyHeader()
                 .AllowAnyMethod();
