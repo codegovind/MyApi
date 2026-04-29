@@ -11,20 +11,9 @@ jobs:
 
     steps:
       - name: Step 1 - Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Step 2 - Setup .NET
-        uses: actions/setup-dotnet@v3
-        with:
-          dotnet-version: '8.0.x'
-
-      - name: Step 3 - Restore dependencies
-        run: dotnet restore
-
-      - name: Step 4 - Build
-        run: dotnet build --no-restore
-
-      - name: Step 5 - Deploy to EC2
+      - name: Step 2 - Deploy to EC2 via SSH
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
