@@ -1,0 +1,44 @@
+name: TaxAccount API - Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Step 1 - Checkout code
+        uses: actions/checkout@v3
+
+      - name: Step 2 - Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Step 3 - Restore dependencies
+        run: dotnet restore
+
+      - name: Step 4 - Build
+        run: dotnet build --no-restore
+
+      - name: Step 5 - Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/taxaccount/TaxAccount-API
+            git pull origin main
+            docker stop taxaccount-api || true
+            docker rm taxaccount-api || true
+            docker build -t taxaccount-api .
+            docker run -d \
+              -p 8080:8080 \
+              --name taxaccount-api \
+              --restart always \
+              taxaccount-api
+            echo "Deployment successful!"
