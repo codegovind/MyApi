@@ -1,0 +1,525 @@
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+#pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
+
+namespace TaxAccount.Migrations
+{
+    /// <inheritdoc />
+    public partial class InitialCreate : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.CreateTable(
+                name: "Permissions",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Permissions", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Roles",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Roles", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Tenants",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    CompanyName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Email = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    State = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Gstin = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Tenants", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "RolePermissions",
+                columns: table => new
+                {
+                    RoleId = table.Column<int>(type: "int", nullable: false),
+                    PermissionId = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RolePermissions", x => new { x.RoleId, x.PermissionId });
+                    table.ForeignKey(
+                        name: "FK_RolePermissions_Permissions_PermissionId",
+                        column: x => x.PermissionId,
+                        principalTable: "Permissions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_RolePermissions_Roles_RoleId",
+                        column: x => x.RoleId,
+                        principalTable: "Roles",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Contacts",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<int>(type: "int", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Gstin = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    GstType = table.Column<int>(type: "int", nullable: false),
+                    ContactType = table.Column<int>(type: "int", nullable: false),
+                    Phone = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Address = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    City = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    State = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    PinCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    OpeningBalance = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    IsDefault = table.Column<bool>(type: "bit", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Contacts", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Contacts_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Products",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<int>(type: "int", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    SKU = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    HsnCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    PurchasePrice = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    MarketValue = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    Price = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    Stock = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    Unit = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    GSTPercent = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Products", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Products_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Users",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<int>(type: "int", nullable: false),
+                    FirstName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    LastName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Email = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    PasswordHash = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    RoleId = table.Column<int>(type: "int", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Users", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Users_Roles_RoleId",
+                        column: x => x.RoleId,
+                        principalTable: "Roles",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Users_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Invoices",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<int>(type: "int", nullable: false),
+                    InvoiceNumber = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    InvoiceType = table.Column<int>(type: "int", nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    PaymentMethod = table.Column<int>(type: "int", nullable: false),
+                    EntrySource = table.Column<int>(type: "int", nullable: false),
+                    InvoiceDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DueDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ContactId = table.Column<int>(type: "int", nullable: true),
+                    CreatedByUserId = table.Column<int>(type: "int", nullable: false),
+                    Notes = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    SubTotal = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    DiscountAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    TaxAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    TotalAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Invoices", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Invoices_Contacts_ContactId",
+                        column: x => x.ContactId,
+                        principalTable: "Contacts",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Invoices_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Invoices_Users_CreatedByUserId",
+                        column: x => x.CreatedByUserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "StockAdjustments",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<int>(type: "int", nullable: false),
+                    ProductId = table.Column<int>(type: "int", nullable: false),
+                    Quantity = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    AdjustmentType = table.Column<int>(type: "int", nullable: false),
+                    Reason = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    AdjustmentDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    AdjustedByUserId = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StockAdjustments", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_StockAdjustments_Products_ProductId",
+                        column: x => x.ProductId,
+                        principalTable: "Products",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StockAdjustments_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StockAdjustments_Users_AdjustedByUserId",
+                        column: x => x.AdjustedByUserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "InvoiceItems",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<int>(type: "int", nullable: false),
+                    InvoiceId = table.Column<int>(type: "int", nullable: false),
+                    ProductId = table.Column<int>(type: "int", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    HsnCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Quantity = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    Unit = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    UnitPrice = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    DiscountPercent = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false),
+                    DiscountAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    TaxPercent = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false),
+                    TaxAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    CgstPercent = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false),
+                    CgstAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    SgstPercent = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false),
+                    SgstAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    IgstPercent = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false),
+                    IgstAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    TotalAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_InvoiceItems", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_InvoiceItems_Invoices_InvoiceId",
+                        column: x => x.InvoiceId,
+                        principalTable: "Invoices",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_InvoiceItems_Products_ProductId",
+                        column: x => x.ProductId,
+                        principalTable: "Products",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TransportDetails",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<int>(type: "int", nullable: false),
+                    InvoiceId = table.Column<int>(type: "int", nullable: false),
+                    TransporterId = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    TransporterName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    VehicleNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Distance = table.Column<int>(type: "int", nullable: true),
+                    TransportDocNo = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Mode = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TransportDetails", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_TransportDetails_Invoices_InvoiceId",
+                        column: x => x.InvoiceId,
+                        principalTable: "Invoices",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_TransportDetails_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.InsertData(
+                table: "Permissions",
+                columns: new[] { "Id", "CreatedAt", "Description", "Name" },
+                values: new object[,]
+                {
+                    { 1, new DateTime(2026, 4, 30, 11, 17, 49, 216, DateTimeKind.Utc).AddTicks(7831), "View products", "products.view" },
+                    { 2, new DateTime(2026, 4, 30, 11, 17, 49, 216, DateTimeKind.Utc).AddTicks(7840), "Create products", "products.create" },
+                    { 3, new DateTime(2026, 4, 30, 11, 17, 49, 216, DateTimeKind.Utc).AddTicks(7845), "Edit products", "products.edit" },
+                    { 4, new DateTime(2026, 4, 30, 11, 17, 49, 216, DateTimeKind.Utc).AddTicks(7849), "Delete products", "products.delete" },
+                    { 5, new DateTime(2026, 4, 30, 11, 17, 49, 216, DateTimeKind.Utc).AddTicks(7853), "View invoices", "invoices.view" },
+                    { 6, new DateTime(2026, 4, 30, 11, 17, 49, 216, DateTimeKind.Utc).AddTicks(7857), "Create invoices", "invoices.create" },
+                    { 7, new DateTime(2026, 4, 30, 11, 17, 49, 216, DateTimeKind.Utc).AddTicks(7861), "Approve invoices", "invoices.approve" },
+                    { 8, new DateTime(2026, 4, 30, 11, 17, 49, 216, DateTimeKind.Utc).AddTicks(7865), "View reports", "reports.view" },
+                    { 9, new DateTime(2026, 4, 30, 11, 17, 49, 216, DateTimeKind.Utc).AddTicks(7869), "Manage users", "users.manage" },
+                    { 10, new DateTime(2026, 4, 30, 11, 17, 49, 216, DateTimeKind.Utc).AddTicks(7873), "Manage accounts", "accounts.manage" },
+                    { 11, new DateTime(2026, 4, 30, 11, 17, 49, 216, DateTimeKind.Utc).AddTicks(7877), "Manage contacts", "contacts.manage" },
+                    { 12, new DateTime(2026, 4, 30, 11, 17, 49, 216, DateTimeKind.Utc).AddTicks(8150), "Manage stock adjustments", "stock.manage" }
+                });
+
+            migrationBuilder.InsertData(
+                table: "Roles",
+                columns: new[] { "Id", "CreatedAt", "Description", "Name" },
+                values: new object[,]
+                {
+                    { 1, new DateTime(2026, 4, 30, 11, 17, 49, 216, DateTimeKind.Utc).AddTicks(7073), "Full access to everything", "Owner" },
+                    { 2, new DateTime(2026, 4, 30, 11, 17, 49, 216, DateTimeKind.Utc).AddTicks(7083), "Manage operations", "Manager" },
+                    { 3, new DateTime(2026, 4, 30, 11, 17, 49, 216, DateTimeKind.Utc).AddTicks(7088), "Day to day operations", "Staff" },
+                    { 4, new DateTime(2026, 4, 30, 11, 17, 49, 216, DateTimeKind.Utc).AddTicks(7093), "View only access", "Auditor" }
+                });
+
+            migrationBuilder.InsertData(
+                table: "RolePermissions",
+                columns: new[] { "PermissionId", "RoleId" },
+                values: new object[,]
+                {
+                    { 1, 1 },
+                    { 2, 1 },
+                    { 3, 1 },
+                    { 4, 1 },
+                    { 5, 1 },
+                    { 6, 1 },
+                    { 7, 1 },
+                    { 8, 1 },
+                    { 9, 1 },
+                    { 10, 1 },
+                    { 11, 1 },
+                    { 12, 1 },
+                    { 1, 2 },
+                    { 2, 2 },
+                    { 3, 2 },
+                    { 5, 2 },
+                    { 6, 2 },
+                    { 7, 2 },
+                    { 8, 2 },
+                    { 11, 2 },
+                    { 12, 2 },
+                    { 1, 3 },
+                    { 2, 3 },
+                    { 5, 3 },
+                    { 6, 3 },
+                    { 11, 3 },
+                    { 1, 4 },
+                    { 5, 4 },
+                    { 8, 4 }
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Contacts_TenantId",
+                table: "Contacts",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_InvoiceItems_InvoiceId",
+                table: "InvoiceItems",
+                column: "InvoiceId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_InvoiceItems_ProductId",
+                table: "InvoiceItems",
+                column: "ProductId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Invoices_ContactId",
+                table: "Invoices",
+                column: "ContactId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Invoices_CreatedByUserId",
+                table: "Invoices",
+                column: "CreatedByUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Invoices_TenantId",
+                table: "Invoices",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Products_TenantId",
+                table: "Products",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RolePermissions_PermissionId",
+                table: "RolePermissions",
+                column: "PermissionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StockAdjustments_AdjustedByUserId",
+                table: "StockAdjustments",
+                column: "AdjustedByUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StockAdjustments_ProductId",
+                table: "StockAdjustments",
+                column: "ProductId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StockAdjustments_TenantId",
+                table: "StockAdjustments",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TransportDetails_InvoiceId",
+                table: "TransportDetails",
+                column: "InvoiceId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TransportDetails_TenantId",
+                table: "TransportDetails",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Users_RoleId",
+                table: "Users",
+                column: "RoleId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Users_TenantId_Email",
+                table: "Users",
+                columns: new[] { "TenantId", "Email" },
+                unique: true);
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.DropTable(
+                name: "InvoiceItems");
+
+            migrationBuilder.DropTable(
+                name: "RolePermissions");
+
+            migrationBuilder.DropTable(
+                name: "StockAdjustments");
+
+            migrationBuilder.DropTable(
+                name: "TransportDetails");
+
+            migrationBuilder.DropTable(
+                name: "Permissions");
+
+            migrationBuilder.DropTable(
+                name: "Products");
+
+            migrationBuilder.DropTable(
+                name: "Invoices");
+
+            migrationBuilder.DropTable(
+                name: "Contacts");
+
+            migrationBuilder.DropTable(
+                name: "Users");
+
+            migrationBuilder.DropTable(
+                name: "Roles");
+
+            migrationBuilder.DropTable(
+                name: "Tenants");
+        }
+    }
+}

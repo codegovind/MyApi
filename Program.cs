@@ -1,15 +1,15 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Serilog;
+using System.Text;
 using FluentValidation;
 using FluentValidation.AspNetCore;
-using TaxAccount.Data;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.AspNetCore.Authorization;
 using TaxAccount.Authorization;
-using System.Text;
-using TaxAccount.Services;
+using TaxAccount.Data;
 using TaxAccount.Middleware;
+using TaxAccount.Services;
 using TaxAccount.Validators;
 
 // Configure Serilog first before anything else
@@ -32,27 +32,35 @@ try
     // Use Serilog
     builder.Host.UseSerilog();
 
-    // Services
+    // Controllers
     builder.Services.AddControllers();
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen();
-
-    // In-Memory Cache
-    builder.Services.AddMemoryCache();
 
     // FluentValidation
     builder.Services.AddFluentValidationAutoValidation();
     builder.Services.AddValidatorsFromAssemblyContaining<CreateProductValidator>();
 
-    // Product Service
-    builder.Services.AddScoped<IProductService, ProductService>();
+    // In-Memory Cache
+    builder.Services.AddMemoryCache();
 
-    // Database
-     builder.Services.AddDbContext<AppDbContext>(options =>
-        options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    // ── HTTP Context Accessor (for TenantService) ──
+    builder.Services.AddHttpContextAccessor();
 
-    // After other service registrations - authentication services
+    // ── Services ──
+    builder.Services.AddScoped<ITenantService, TenantService>();
     builder.Services.AddScoped<IAuthService, AuthService>();
+    builder.Services.AddScoped<IProductService, ProductService>();
+    builder.Services.AddScoped<IInvoiceService, InvoiceService>();
+    builder.Services.AddScoped<IStockService, StockService>();
+    builder.Services.AddScoped<DataSeeder>();
+    
+    // Database
+     builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
+    {
+        options.UseSqlServer(
+            builder.Configuration.GetConnectionString("DefaultConnection"));
+    });    
 
     // JWT Authentication
     var jwtSettings = builder.Configuration.GetSection("JwtSettings");
@@ -95,7 +103,8 @@ try
     {
         "products.view", "products.create", "products.edit", "products.delete",
         "invoices.view", "invoices.create", "invoices.approve",
-        "reports.view", "users.manage", "accounts.manage"
+        "reports.view", "users.manage", "accounts.manage",
+        "contacts.manage", "stock.manage"
     };
 
     foreach (var permission in permissions)
@@ -104,9 +113,6 @@ try
             policy.Requirements.Add(new PermissionRequirement(permission)));
     }
     });
-
-    //Invoicing Service
-    builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 
     // Add Angular Cores 
     builder.Services.AddCors(options =>
@@ -134,22 +140,16 @@ try
     // Add Angular frontend
     app.UseCors("AllowAngular");
 
-    // authentication and authorization
-    app.UseAuthentication();
-    app.UseAuthorization();
-
-    // Swagger
-    // Configure the HTTP request pipeline.
-    //if (app.Environment.IsDevelopment())
-    //{
     app.UseSwagger();
     app.UseSwaggerUI();
-    //}
 
     // Log every request
     app.UseSerilogRequestLogging();
 
-    //app.UseAuthorization();
+    // authentication and authorization
+    app.UseAuthentication();
+    app.UseAuthorization();
+
     app.MapControllers();
 
     // Test endpoints

@@ -38,14 +38,14 @@ namespace TaxAccount.Controllers
                 .CountAsync(i => i.Status == Models.InvoiceStatus.Draft);
 
             var recentInvoices = await _context.Invoices
-                .Include(i => i.Customer)
+                .Include(i => i.Contact)
                 .OrderByDescending(i => i.CreatedAt)
                 .Take(5)
                 .Select(i => new
                 {
                     i.Id,
                     i.InvoiceNumber,
-                    CustomerName = $"{i.Customer.FirstName} {i.Customer.LastName}",
+                    CustomerName = i.Contact != null ? i.Contact.Name : "Cash Sale",
                     i.TotalAmount,
                     Status = i.Status.ToString(),
                     i.InvoiceDate

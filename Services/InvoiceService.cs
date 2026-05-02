@@ -2,43 +2,53 @@ using Microsoft.EntityFrameworkCore;
 using TaxAccount.Data;
 using TaxAccount.DTOs;
 using TaxAccount.Exceptions;
+using TaxAccount.Helpers;
 using TaxAccount.Models;
+using TaxAccount.Services;
 
 namespace TaxAccount.Services
 {
     public class InvoiceService : IInvoiceService
     {
         private readonly AppDbContext _context;
+        private readonly ITenantService _tenantService;
         private readonly ILogger<InvoiceService> _logger;
 
-        public InvoiceService(AppDbContext context, ILogger<InvoiceService> logger)
+        public InvoiceService(
+            AppDbContext context,
+            ITenantService tenantService,
+            ILogger<InvoiceService> logger)
         {
             _context = context;
+            _tenantService = tenantService;
             _logger = logger;
         }
 
         public async Task<List<InvoiceResponseDto>> GetAllAsync()
         {
-            return await _context.Invoices
-                .Include(i => i.Customer)
+            var invoices = await _context.Invoices
+                .Include(i => i.Contact)
                 .Include(i => i.CreatedBy)
                 .Include(i => i.Items)
                     .ThenInclude(item => item.Product)
-                .Select(i => MapToResponseDto(i))
+                .OrderByDescending(i => i.CreatedAt)
                 .ToListAsync();
+
+            return invoices.Select(MapToResponseDto).ToList();
         }
 
         public async Task<InvoiceResponseDto> GetByIdAsync(int id)
         {
             var invoice = await _context.Invoices
-                .Include(i => i.Customer)
+                .Include(i => i.Contact)
                 .Include(i => i.CreatedBy)
                 .Include(i => i.Items)
                     .ThenInclude(item => item.Product)
+                .Include(i => i.TransportDetail)
                 .FirstOrDefaultAsync(i => i.Id == id);
 
             if (invoice == null)
-                throw new NotFoundException($"Invoice with id {id} not found");
+                throw new NotFoundException($"Invoice {id} not found");
 
             return MapToResponseDto(invoice);
         }
@@ -46,67 +56,180 @@ namespace TaxAccount.Services
         public async Task<InvoiceResponseDto> CreateAsync(
             CreateInvoiceDto dto, int createdByUserId)
         {
-            // Verify customer exists
-            var customer = await _context.Users.FindAsync(dto.CustomerId);
-            if (customer == null)
-                throw new NotFoundException("Customer not found");
+            var tenantId = _tenantService.GetTenantId();
 
-            // Generate invoice number
-            var invoiceNumber = await GenerateInvoiceNumberAsync();
+            // Get tenant for GST state logic
+            var tenant = await _context.Tenants
+                .FindAsync(tenantId);
 
-            // Calculate totals
-            var items = new List<InvoiceItem>();
-            decimal subTotal = 0;
-            decimal totalTax = 0;
+            // Cash Sale Fallback — if no contact, use default cash customer
+            int? contactId = dto.ContactId;
+            Contact? contact = null;
 
-            foreach (var itemDto in dto.Items)
+            if (contactId.HasValue)
             {
-                var product = await _context.Products.FindAsync(itemDto.ProductId);
-                if (product == null)
-                    throw new NotFoundException($"Product {itemDto.ProductId} not found");
+                contact = await _context.Contacts
+                    .FirstOrDefaultAsync(c => c.Id == contactId);
 
-                var itemSubTotal = itemDto.Quantity * itemDto.UnitPrice;
-                var itemTax = itemSubTotal * (itemDto.TaxPercent / 100);
-                var itemTotal = itemSubTotal + itemTax;
+                if (contact == null)
+                    throw new NotFoundException("Contact not found");
+            }
+            else
+            {
+                // Find default cash customer for this tenant
+                contact = await _context.Contacts
+                    .FirstOrDefaultAsync(c =>
+                        c.TenantId == tenantId && c.IsDefault);
 
-                items.Add(new InvoiceItem
-                {
-                    ProductId = itemDto.ProductId,
-                    Description = itemDto.Description,
-                    Quantity = itemDto.Quantity,
-                    UnitPrice = itemDto.UnitPrice,
-                    TaxPercent = itemDto.TaxPercent,
-                    TaxAmount = itemTax,
-                    TotalAmount = itemTotal
-                });
+                contactId = contact?.Id;
 
-                subTotal += itemSubTotal;
-                totalTax += itemTax;
+                _logger.LogInformation(
+                    "No contact provided - using default cash customer " +
+                    "for tenant {TenantId}", tenantId);
             }
 
-            var invoice = new Invoice
+            // Generate invoice number
+            var invoiceNumber = await GenerateInvoiceNumberAsync(
+                tenantId, dto.InvoiceType);
+
+            // Determine inter-state for GST
+            bool isInterState = GstCalculator.IsInterState(
+                tenant?.State, contact?.State);
+
+            // Process items with SNAPSHOT of current prices
+            var items = new List<InvoiceItem>();
+            decimal subTotal = 0;
+            decimal totalDiscount = 0;
+            decimal totalTax = 0;
+
+            await using var transaction = await _context.Database
+                .BeginTransactionAsync();
+
+            try
             {
-                InvoiceNumber = invoiceNumber,
-                InvoiceDate = DateTime.UtcNow,
-                DueDate = dto.DueDate,
-                Status = InvoiceStatus.Draft,
-                CustomerId = dto.CustomerId,
-                CreatedByUserId = createdByUserId,
-                Notes = dto.Notes,
-                SubTotal = subTotal,
-                TaxAmount = totalTax,
-                TotalAmount = subTotal + totalTax,
-                Items = items
-            };
+                foreach (var itemDto in dto.Items)
+                {
+                    var product = await _context.Products
+                        .FindAsync(itemDto.ProductId);
 
-            _context.Invoices.Add(invoice);
-            await _context.SaveChangesAsync();
+                    if (product == null)
+                        throw new NotFoundException(
+                            $"Product {itemDto.ProductId} not found");
 
-            _logger.LogInformation(
-                "Invoice {InvoiceNumber} created by user {UserId}",
-                invoiceNumber, createdByUserId);
+                    // Stock validation for sales
+                    if (dto.InvoiceType == InvoiceType.Sale &&
+                        product.Stock < itemDto.Quantity)
+                    {
+                        throw new AppException(
+                            $"Insufficient stock for {product.Name}. " +
+                            $"Available: {product.Stock}", 400);
+                    }
 
-            return await GetByIdAsync(invoice.Id);
+                    // SNAPSHOT — use price at time of invoice
+                    var unitPrice = itemDto.UnitPrice > 0
+                        ? itemDto.UnitPrice
+                        : product.Price;
+
+                    var itemSubTotal = itemDto.Quantity * unitPrice;
+                    var discountAmt = itemSubTotal *
+                        (itemDto.DiscountPercent / 100);
+                    var taxableAmount = itemSubTotal - discountAmt;
+
+                    // GST calculation - CGST/SGST or IGST
+                    var (cgst, sgst, igst) = GstCalculator.CalculateGst(
+                        taxableAmount,
+                        itemDto.TaxPercent > 0
+                            ? itemDto.TaxPercent
+                            : product.GSTPercent,
+                        isInterState);
+
+                    var totalTaxAmt = cgst + sgst + igst;
+                    var itemTotal = taxableAmount + totalTaxAmt;
+
+                    items.Add(new InvoiceItem
+                    {
+                        TenantId = tenantId,
+                        ProductId = itemDto.ProductId,
+                        Description = itemDto.Description.Length > 0
+                            ? itemDto.Description
+                            : product.Name,
+                        HsnCode = product.HsnCode, // Snapshot
+                        Quantity = itemDto.Quantity,
+                        Unit = product.Unit,        // Snapshot
+                        UnitPrice = unitPrice,       // Snapshot
+                        DiscountPercent = itemDto.DiscountPercent,
+                        DiscountAmount = discountAmt,
+                        TaxPercent = itemDto.TaxPercent > 0
+                            ? itemDto.TaxPercent
+                            : product.GSTPercent,   // Snapshot
+                        TaxAmount = totalTaxAmt,
+                        CgstPercent = isInterState ? 0
+                            : (itemDto.TaxPercent > 0
+                                ? itemDto.TaxPercent
+                                : product.GSTPercent) / 2,
+                        CgstAmount = cgst,
+                        SgstPercent = isInterState ? 0
+                            : (itemDto.TaxPercent > 0
+                                ? itemDto.TaxPercent
+                                : product.GSTPercent) / 2,
+                        SgstAmount = sgst,
+                        IgstPercent = isInterState
+                            ? (itemDto.TaxPercent > 0
+                                ? itemDto.TaxPercent
+                                : product.GSTPercent)
+                            : 0,
+                        IgstAmount = igst,
+                        TotalAmount = itemTotal
+                    });
+
+                    // Update stock based on invoice type
+                    if (dto.InvoiceType == InvoiceType.Sale)
+                        product.Stock -= itemDto.Quantity;
+                    else if (dto.InvoiceType == InvoiceType.Purchase)
+                        product.Stock += itemDto.Quantity;
+
+                    subTotal += itemSubTotal;
+                    totalDiscount += discountAmt;
+                    totalTax += totalTaxAmt;
+                }
+
+                var invoice = new Invoice
+                {
+                    TenantId = tenantId,
+                    InvoiceNumber = invoiceNumber,
+                    InvoiceType = dto.InvoiceType,
+                    InvoiceDate = DateTime.UtcNow,
+                    DueDate = dto.DueDate,
+                    Status = InvoiceStatus.Draft,
+                    PaymentMethod = dto.PaymentMethod,
+                    EntrySource = dto.EntrySource,
+                    ContactId = contactId,
+                    CreatedByUserId = createdByUserId,
+                    Notes = dto.Notes,
+                    SubTotal = subTotal,
+                    DiscountAmount = totalDiscount,
+                    TaxAmount = totalTax,
+                    TotalAmount = subTotal - totalDiscount + totalTax,
+                    Items = items
+                };
+
+                _context.Invoices.Add(invoice);
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                _logger.LogInformation(
+                    "Invoice {InvoiceNumber} created - Type: {InvoiceType}",
+                    invoiceNumber, dto.InvoiceType);
+
+                return await GetByIdAsync(invoice.Id);
+            }
+            catch (Exception ex) when (ex is not AppException
+                and not NotFoundException)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Invoice creation failed");
+                throw new AppException("Invoice creation failed", 500);
+            }
         }
 
         public async Task<InvoiceResponseDto> UpdateStatusAsync(
@@ -114,11 +237,10 @@ namespace TaxAccount.Services
         {
             var invoice = await _context.Invoices.FindAsync(id);
             if (invoice == null)
-                throw new NotFoundException($"Invoice with id {id} not found");
+                throw new NotFoundException($"Invoice {id} not found");
 
-            // Prevent invalid status changes
             if (invoice.Status == InvoiceStatus.Cancelled)
-                throw new AppException("Cannot update a cancelled invoice");
+                throw new AppException("Cannot update cancelled invoice");
 
             invoice.Status = dto.Status;
             invoice.UpdatedAt = DateTime.UtcNow;
@@ -126,19 +248,38 @@ namespace TaxAccount.Services
             await _context.SaveChangesAsync();
 
             _logger.LogInformation(
-                "Invoice {Id} status updated to {Status}", id, dto.Status);
+                "Invoice {Id} status updated to {Status}",
+                id, dto.Status);
 
             return await GetByIdAsync(id);
         }
 
         public async Task<bool> DeleteAsync(int id)
         {
-            var invoice = await _context.Invoices.FindAsync(id);
+            var invoice = await _context.Invoices
+                .Include(i => i.Items)
+                .FirstOrDefaultAsync(i => i.Id == id);
+
             if (invoice == null)
-                throw new NotFoundException($"Invoice with id {id} not found");
+                throw new NotFoundException($"Invoice {id} not found");
 
             if (invoice.Status != InvoiceStatus.Draft)
                 throw new AppException("Only draft invoices can be deleted");
+
+            // Reverse stock changes
+            foreach (var item in invoice.Items)
+            {
+                var product = await _context.Products
+                    .FindAsync(item.ProductId);
+
+                if (product != null)
+                {
+                    if (invoice.InvoiceType == InvoiceType.Sale)
+                        product.Stock += item.Quantity;
+                    else if (invoice.InvoiceType == InvoiceType.Purchase)
+                        product.Stock -= item.Quantity;
+                }
+            }
 
             _context.Invoices.Remove(invoice);
             await _context.SaveChangesAsync();
@@ -147,13 +288,20 @@ namespace TaxAccount.Services
             return true;
         }
 
-        private async Task<string> GenerateInvoiceNumberAsync()
+        private async Task<string> GenerateInvoiceNumberAsync(
+            int tenantId, InvoiceType type)
         {
             var year = DateTime.UtcNow.Year;
-            var count = await _context.Invoices
-                .CountAsync(i => i.InvoiceDate.Year == year);
+            var prefix = type == InvoiceType.Sale ? "INV" : "PUR";
 
-            return $"INV-{year}-{(count + 1):D4}";
+            var count = await _context.Invoices
+                .IgnoreQueryFilters()
+                .CountAsync(i =>
+                    i.TenantId == tenantId &&
+                    i.InvoiceDate.Year == year &&
+                    i.InvoiceType == type);
+
+            return $"{prefix}-{year}-{(count + 1):D4}";
         }
 
         private static InvoiceResponseDto MapToResponseDto(Invoice i)
@@ -162,14 +310,18 @@ namespace TaxAccount.Services
             {
                 Id = i.Id,
                 InvoiceNumber = i.InvoiceNumber,
+                InvoiceType = i.InvoiceType.ToString(),
                 InvoiceDate = i.InvoiceDate,
                 DueDate = i.DueDate,
                 Status = i.Status.ToString(),
-                CustomerId = i.CustomerId,
-                CustomerName = $"{i.Customer.FirstName} {i.Customer.LastName}",
+                PaymentMethod = i.PaymentMethod.ToString(),
+                EntrySource = i.EntrySource.ToString(),
+                ContactId = i.ContactId,
+                ContactName = i.Contact?.Name ?? "Cash Customer",
                 CreatedByName = $"{i.CreatedBy.FirstName} {i.CreatedBy.LastName}",
                 Notes = i.Notes,
                 SubTotal = i.SubTotal,
+                DiscountAmount = i.DiscountAmount,
                 TaxAmount = i.TaxAmount,
                 TotalAmount = i.TotalAmount,
                 CreatedAt = i.CreatedAt,
@@ -179,10 +331,20 @@ namespace TaxAccount.Services
                     ProductId = item.ProductId,
                     ProductName = item.Product.Name,
                     Description = item.Description,
+                    HsnCode = item.HsnCode,
                     Quantity = item.Quantity,
+                    Unit = item.Unit,
                     UnitPrice = item.UnitPrice,
+                    DiscountPercent = item.DiscountPercent,
+                    DiscountAmount = item.DiscountAmount,
                     TaxPercent = item.TaxPercent,
                     TaxAmount = item.TaxAmount,
+                    CgstPercent = item.CgstPercent,
+                    CgstAmount = item.CgstAmount,
+                    SgstPercent = item.SgstPercent,
+                    SgstAmount = item.SgstAmount,
+                    IgstPercent = item.IgstPercent,
+                    IgstAmount = item.IgstAmount,
                     TotalAmount = item.TotalAmount
                 }).ToList()
             };

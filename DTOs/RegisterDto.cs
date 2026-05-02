@@ -4,6 +4,16 @@ namespace TaxAccount.DTOs
 {
     public class RegisterDto
     {
+        // Company Info
+        [Required(ErrorMessage = "Company name is required")]
+        [StringLength(100, MinimumLength = 2)]
+        public string CompanyName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Company email is required")]
+        [EmailAddress]
+        public string CompanyEmail { get; set; } = string.Empty;
+
+        // Owner Info
         [Required(ErrorMessage = "First name is required")]
         [StringLength(50, MinimumLength = 2)]
         public string FirstName { get; set; } = string.Empty;
@@ -13,14 +23,13 @@ namespace TaxAccount.DTOs
         public string LastName { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Email is required")]
-        [EmailAddress(ErrorMessage = "Invalid email format")]
+        [EmailAddress]
         public string Email { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Password is required")]
-        [MinLength(8, ErrorMessage = "Password must be at least 8 characters")]
+        [MinLength(8)]
         public string Password { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Role is required")]
-        public int RoleId { get; set; }
+        public int RoleId { get; set; } = 1;
     }
 }

@@ -15,78 +15,124 @@ namespace TaxAccount.Services
         private readonly AppDbContext _context;
         private readonly IConfiguration _config;
         private readonly ILogger<AuthService> _logger;
+        private readonly DataSeeder _seeder;
 
         public AuthService(
             AppDbContext context,
             IConfiguration config,
-            ILogger<AuthService> logger)
+            ILogger<AuthService> logger,
+            DataSeeder seeder)
         {
             _context = context;
             _config = config;
             _logger = logger;
+            _seeder = seeder;
         }
 
         public async Task<AuthResponseDto> RegisterAsync(RegisterDto dto)
         {
-            // Check if email already exists
+            // Check email uniqueness before starting transaction
             var existingUser = await _context.Users
                 .AnyAsync(u => u.Email == dto.Email);
 
             if (existingUser)
                 throw new AppException("Email already registered", 409);
 
-            // Check if role exists
-            var role = await _context.Roles.FindAsync(dto.RoleId);
-            if (role == null)
-                throw new NotFoundException("Role not found");
+            // Begin atomic transaction
+            await using var transaction = await _context.Database
+                .BeginTransactionAsync();
 
-            // Hash password
-            var passwordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
-
-            // Create user
-            var user = new User
+            try
             {
-                FirstName = dto.FirstName,
-                LastName = dto.LastName,
-                Email = dto.Email,
-                PasswordHash = passwordHash,
-                RoleId = dto.RoleId,
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
+                // Step 1: Create Tenant
+                var tenant = new Tenant
+                {
+                    CompanyName = dto.CompanyName,
+                    Email = dto.CompanyEmail,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
 
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+                _context.Tenants.Add(tenant);
+                await _context.SaveChangesAsync();
 
-            _logger.LogInformation("New user registered: {Email}", dto.Email);
+                // Step 2: Create Owner User
+                var passwordHash = BCrypt.Net.BCrypt
+                    .HashPassword(dto.Password);
 
-            return await GenerateTokenAsync(user);
+                var user = new User
+                {
+                    TenantId = tenant.Id,
+                    FirstName = dto.FirstName,
+                    LastName = dto.LastName,
+                    Email = dto.Email,
+                    PasswordHash = passwordHash,
+                    RoleId = 1, // Owner
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                _context.Users.Add(user);
+                await _context.SaveChangesAsync();
+
+                // Step 3: Seed default data for tenant
+                await _seeder.SeedTenantDefaultsAsync(tenant.Id);
+
+                // Commit transaction
+                await transaction.CommitAsync();
+
+                _logger.LogInformation(
+                    "Tenant {CompanyName} registered successfully " +
+                    "with owner {Email}",
+                    dto.CompanyName, dto.Email);
+
+                return await GenerateTokenAsync(user, tenant);
+            }
+            catch (Exception ex)
+            {
+                // Rollback everything if any step fails
+                await transaction.RollbackAsync();
+
+                _logger.LogError(ex,
+                    "Registration failed for {CompanyName} - " +
+                    "transaction rolled back", dto.CompanyName);
+
+                throw new AppException(
+                    "Registration failed. Please try again.", 500);
+            }
         }
 
         public async Task<AuthResponseDto> LoginAsync(LoginDto dto)
         {
-            // Find user with role and permissions
             var user = await _context.Users
                 .Include(u => u.Role)
+                .Include(u => u.Tenant)
                 .FirstOrDefaultAsync(u => u.Email == dto.Email);
 
             if (user == null || !user.IsActive)
                 throw new UnauthorizedException("Invalid email or password");
 
-            // Verify password
-            var isValidPassword = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
+            if (!user.Tenant.IsActive)
+                throw new UnauthorizedException(
+                    "Your company account is inactive");
+
+            var isValidPassword = BCrypt.Net.BCrypt
+                .Verify(dto.Password, user.PasswordHash);
+
             if (!isValidPassword)
                 throw new UnauthorizedException("Invalid email or password");
 
-            _logger.LogInformation("User logged in: {Email}", dto.Email);
+            _logger.LogInformation(
+                "User {Email} logged in for tenant {TenantId}",
+                dto.Email, user.TenantId);
 
-            return await GenerateTokenAsync(user);
+            return await GenerateTokenAsync(user, user.Tenant);
         }
 
-        private async Task<AuthResponseDto> GenerateTokenAsync(User user)
+        private async Task<AuthResponseDto> GenerateTokenAsync(
+            User user, Tenant tenant)
         {
-            // Get permissions for this user's role
             var permissions = await _context.RolePermissions
                 .Where(rp => rp.RoleId == user.RoleId)
                 .Include(rp => rp.Permission)
@@ -96,26 +142,27 @@ namespace TaxAccount.Services
             var secretKey = _config["JwtSettings:SecretKey"]!;
             var issuer = _config["JwtSettings:Issuer"]!;
             var audience = _config["JwtSettings:Audience"]!;
-            var expiryMinutes = int.Parse(_config["JwtSettings:ExpiryInMinutes"]!);
+            var expiryMinutes = int.Parse(
+                _config["JwtSettings:ExpiryInMinutes"]!);
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
-            var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+            var key = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(secretKey));
+            var credentials = new SigningCredentials(
+                key, SecurityAlgorithms.HmacSha256);
 
-            // Build claims - this is what goes inside the JWT token
             var claims = new List<Claim>
             {
                 new(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new(ClaimTypes.Email, user.Email),
                 new(ClaimTypes.GivenName, user.FirstName),
                 new(ClaimTypes.Surname, user.LastName),
-                new(ClaimTypes.Role, user.Role?.Name ?? string.Empty)
+                new(ClaimTypes.Role, user.Role?.Name ?? string.Empty),
+                new("tenantId", tenant.Id.ToString()),
+                new("companyName", tenant.CompanyName)
             };
 
-            // Add each permission as a claim
             foreach (var permission in permissions)
-            {
                 claims.Add(new Claim("permission", permission));
-            }
 
             var expiry = DateTime.UtcNow.AddMinutes(expiryMinutes);
 
@@ -127,14 +174,14 @@ namespace TaxAccount.Services
                 signingCredentials: credentials
             );
 
-            var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
-
             return new AuthResponseDto
             {
-                Token = tokenString,
+                Token = new JwtSecurityTokenHandler().WriteToken(token),
                 Email = user.Email,
                 FullName = $"{user.FirstName} {user.LastName}",
                 Role = user.Role?.Name ?? string.Empty,
+                CompanyName = tenant.CompanyName,
+                TenantId = tenant.Id,
                 Permissions = permissions,
                 ExpiresAt = expiry
             };
