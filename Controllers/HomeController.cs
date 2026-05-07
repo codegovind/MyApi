@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using TaxAccount.Authorization;
 using TaxAccount.Data;
+using TaxAccount.Models;
 
 namespace TaxAccount.Controllers
 {
@@ -23,21 +24,26 @@ namespace TaxAccount.Controllers
         [HasPermission("reports.view")]
         public async Task<IActionResult> GetDashboard()
         {
-            var totalInvoices = await _context.Invoices.CountAsync();
+            var totalInvoices = await _context.Invoices
+            .Where(i => i.InvoiceType == InvoiceType.Sale)
+            .CountAsync();
             var totalProducts = await _context.Products.CountAsync();
             var totalUsers = await _context.Users.CountAsync();
 
             var totalRevenue = await _context.Invoices
-                .Where(i => i.Status == Models.InvoiceStatus.Paid)
+                .Where(i => i.Status == InvoiceStatus.Paid && i.InvoiceType == InvoiceType.Sale)
                 .SumAsync(i => i.TotalAmount);
 
             var pendingInvoices = await _context.Invoices
+                .Where(i => i.InvoiceType == InvoiceType.Sale)
                 .CountAsync(i => i.Status == Models.InvoiceStatus.Sent);
 
             var draftInvoices = await _context.Invoices
+                .Where(i => i.InvoiceType == InvoiceType.Sale)
                 .CountAsync(i => i.Status == Models.InvoiceStatus.Draft);
 
             var recentInvoices = await _context.Invoices
+                .Where(i => i.InvoiceType == InvoiceType.Sale)
                 .Include(i => i.Contact)
                 .OrderByDescending(i => i.CreatedAt)
                 .Take(5)

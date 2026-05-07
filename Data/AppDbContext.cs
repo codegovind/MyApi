@@ -28,6 +28,8 @@ namespace TaxAccount.Data
         public DbSet<InvoiceItem> InvoiceItems { get; set; }
         public DbSet<TransportDetail> TransportDetails { get; set; }
         public DbSet<StockAdjustment> StockAdjustments { get; set; }
+        public DbSet<PurchaseOrder> PurchaseOrders { get; set; }
+        public DbSet<PurchaseOrderItem> PurchaseOrderItems { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -55,6 +57,14 @@ namespace TaxAccount.Data
             modelBuilder.Entity<StockAdjustment>()
                 .HasQueryFilter(sa => _tenantService == null ||
                     sa.TenantId == _tenantService.GetTenantId());
+
+            modelBuilder.Entity<PurchaseOrder>()
+                .HasQueryFilter(po => _tenantService == null ||
+                    po.TenantId == _tenantService.GetTenantId());
+
+            modelBuilder.Entity<PurchaseOrderItem>()
+                .HasQueryFilter(poi => _tenantService == null ||
+                    poi.TenantId == _tenantService.GetTenantId());
 
             // ── Precision: Product ──
             modelBuilder.Entity<Product>()
@@ -113,6 +123,43 @@ namespace TaxAccount.Data
             // ── Precision: StockAdjustment ──
             modelBuilder.Entity<StockAdjustment>()
                 .Property(sa => sa.Quantity).HasPrecision(18, 2);
+
+            // Precision
+            modelBuilder.Entity<PurchaseOrder>()
+                .Property(po => po.SubTotal).HasPrecision(18, 2);
+            modelBuilder.Entity<PurchaseOrder>()
+                .Property(po => po.DiscountAmount).HasPrecision(18, 2);
+            modelBuilder.Entity<PurchaseOrder>()
+                .Property(po => po.TaxAmount).HasPrecision(18, 2);
+            modelBuilder.Entity<PurchaseOrder>()
+                .Property(po => po.TotalAmount).HasPrecision(18, 2);
+
+            modelBuilder.Entity<PurchaseOrderItem>()
+                .Property(i => i.Quantity).HasPrecision(18, 2);
+            modelBuilder.Entity<PurchaseOrderItem>()
+                .Property(i => i.UnitPrice).HasPrecision(18, 2);
+            modelBuilder.Entity<PurchaseOrderItem>()
+                .Property(i => i.DiscountPercent).HasPrecision(5, 2);
+            modelBuilder.Entity<PurchaseOrderItem>()
+                .Property(i => i.DiscountAmount).HasPrecision(18, 2);
+            modelBuilder.Entity<PurchaseOrderItem>()
+                .Property(i => i.TaxPercent).HasPrecision(5, 2);
+            modelBuilder.Entity<PurchaseOrderItem>()
+                .Property(i => i.TaxAmount).HasPrecision(18, 2);
+            modelBuilder.Entity<PurchaseOrderItem>()
+                .Property(i => i.CgstPercent).HasPrecision(5, 2);
+            modelBuilder.Entity<PurchaseOrderItem>()
+                .Property(i => i.CgstAmount).HasPrecision(18, 2);
+            modelBuilder.Entity<PurchaseOrderItem>()
+                .Property(i => i.SgstPercent).HasPrecision(5, 2);
+            modelBuilder.Entity<PurchaseOrderItem>()
+                .Property(i => i.SgstAmount).HasPrecision(18, 2);
+            modelBuilder.Entity<PurchaseOrderItem>()
+                .Property(i => i.IgstPercent).HasPrecision(5, 2);
+            modelBuilder.Entity<PurchaseOrderItem>()
+                .Property(i => i.IgstAmount).HasPrecision(18, 2);
+            modelBuilder.Entity<PurchaseOrderItem>()
+            .Property(i => i.TotalAmount).HasPrecision(18, 2);
 
             // ── RolePermission Composite Key ──
             modelBuilder.Entity<RolePermission>()
@@ -197,6 +244,31 @@ namespace TaxAccount.Data
                 .HasOne(sa => sa.Tenant)
                 .WithMany()
                 .HasForeignKey(sa => sa.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Relationships Purchase
+            modelBuilder.Entity<PurchaseOrder>()
+                .HasOne(po => po.Contact)
+                .WithMany()
+                .HasForeignKey(po => po.ContactId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<PurchaseOrder>()
+                .HasOne(po => po.CreatedBy)
+                .WithMany()
+                .HasForeignKey(po => po.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<PurchaseOrderItem>()
+                .HasOne(poi => poi.PurchaseOrder)
+                .WithMany(po => po.Items)
+                .HasForeignKey(poi => poi.PurchaseOrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<PurchaseOrderItem>()
+                .HasOne(poi => poi.Product)
+                .WithMany()
+                .HasForeignKey(poi => poi.ProductId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // ── Seed: Roles ──

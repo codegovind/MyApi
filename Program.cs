@@ -54,7 +54,8 @@ try
     builder.Services.AddScoped<IInvoiceService, InvoiceService>();
     builder.Services.AddScoped<IStockService, StockService>();
     builder.Services.AddScoped<DataSeeder>();
-    
+    builder.Services.AddScoped<IPurchaseService, PurchaseService>();
+    builder.Services.AddScoped<IContactService, ContactService>();
     // Database
      builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
     {
@@ -134,6 +135,22 @@ try
 
     var app = builder.Build();
 
+    //Run pending Migrations is any
+    using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<AppDbContext>();
+        // This command checks the database and runs any pending migrations automatically!
+        context.Database.Migrate(); 
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while migrating the database.");
+    }
+}
     // Global Exception Middleware
     app.UseMiddleware<ExceptionMiddleware>();
 

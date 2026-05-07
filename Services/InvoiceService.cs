@@ -27,6 +27,7 @@ namespace TaxAccount.Services
         public async Task<List<InvoiceResponseDto>> GetAllAsync()
         {
             var invoices = await _context.Invoices
+                .Where(i => i.InvoiceType == InvoiceType.Sale)
                 .Include(i => i.Contact)
                 .Include(i => i.CreatedBy)
                 .Include(i => i.Items)

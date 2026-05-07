@@ -4,11 +4,28 @@ namespace TaxAccount.DTOs
     public class UpdateProductDto
     {
         [Required(ErrorMessage = "Product name is required")]
-        [StringLength(100, MinimumLength = 2, ErrorMessage = "Name must be between 2 and 100 characters")]
-        public string? Name { get; set; }
-        
-        [Required(ErrorMessage = "Price is required")]
-        [Range(0.01, 999999.99, ErrorMessage = "Price must be between 0.01 and 999999.99")]
+        [StringLength(200, MinimumLength = 2)]
+        public string Name { get; set; } = string.Empty;
+
+        public string SKU { get; set; } = string.Empty;
+        public string HsnCode { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+
+        [Range(0, 9999999)]
+        public decimal PurchasePrice { get; set; } = 0;
+
+        [Range(0, 9999999)]
+        public decimal MarketValue { get; set; } = 0;
+
+        [Required]
+        [Range(0.01, 9999999)]
         public decimal Price { get; set; }
+
+        public string Unit { get; set; } = "Nos";
+
+        [Range(0, 100)]
+        public decimal GSTPercent { get; set; } = 18;
+
+        public bool IsActive { get; set; } = true;
     }
 }

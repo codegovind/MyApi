@@ -4,11 +4,31 @@ namespace TaxAccount.DTOs
     public class CreateProductDto
     {
         [Required(ErrorMessage = "Product name is required")]
-        [StringLength(100, MinimumLength = 2, ErrorMessage = "Name must be between 2 and 100 characters")]
-        public string? Name { get; set; }
-        
+        [StringLength(200, MinimumLength = 2)]
+        public string Name { get; set; } = string.Empty;
+
+        public string SKU { get; set; } = string.Empty;
+
+        public string HsnCode { get; set; } = string.Empty;
+
+        public string Description { get; set; } = string.Empty;
+
+        [Range(0, 9999999)]
+        public decimal PurchasePrice { get; set; } = 0;
+
+        [Range(0, 9999999)]
+        public decimal MarketValue { get; set; } = 0;
+
         [Required(ErrorMessage = "Price is required")]
-        [Range(0.01, 999999.99, ErrorMessage = "Price must be between 0.01 and 999999.99")]
+        [Range(0.01, 9999999)]
         public decimal Price { get; set; }
+
+        [Range(0, 999999)]
+        public decimal Stock { get; set; } = 0;
+
+        public string Unit { get; set; } = "Nos";
+
+        [Range(0, 100)]
+        public decimal GSTPercent { get; set; } = 18;
     }
 }
